@@ -1,0 +1,46 @@
+---
+- name: Deploy PetClinic container to the discovered hosts
+  hosts: webservers
+  become: true
+  serial: 1
+  vars:
+    app_name: petclinic
+    app_image: "{{ nexus_repo }}/petclinicapps"
+
+  tasks:
+    - name: Trust the HTTP Nexus Docker registry
+      copy:
+        dest: /etc/docker/daemon.json
+        content: |
+          { "insecure-registries": ["{{ nexus_repo }}"] }
+      register: daemon_json
+
+    - name: Restart Docker if the registry config changed
+      service:
+        name: docker
+        state: restarted
+      when: daemon_json.changed
+
+    - name: Log in to the Nexus Docker registry
+      command: docker login -u {{ nexus_user }} -p {{ nexus_password }} {{ nexus_repo }}
+      no_log: true
+
+    - name: Pull the latest image
+      command: docker pull {{ app_image }}:latest
+
+    - name: Remove the old container if it exists
+      shell: docker rm -f {{ app_name }} || true
+      changed_when: false
+
+    - name: Start the new container
+      command: >
+        docker run -d --name {{ app_name }}
+        --restart unless-stopped
+        -p 8080:8080
+        {{ app_image }}:latest
+
+    - name: Wait for the application to listen on 8080
+      wait_for:
+        port: 8080
+        delay: 10
+        timeout: 180
