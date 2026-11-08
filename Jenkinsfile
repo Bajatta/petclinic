@@ -1,18 +1,18 @@
 pipeline {
     agent any
-    environment {
-        NEXUS_USER     = credentials('nexus-username')
-        NEXUS_PASSWORD = credentials('nexus-password')
-        NEXUS_REPO     = credentials('nexus-repo')   // <nexus-private-ip>:8085
-        DOMAIN         = 'beepaa.online'
-        // ANSIBLE_IP and NEXUS_IP are set as global environment variables in Jenkins
-        // (Manage Jenkins > System > Global properties). Values come from `terraform output`.
+       environment {
+        // Maps your Jenkins credential ID 'nexus-password' to variables
+        NEXUS_CREDS = credentials('nexus-password')
+        NEXUS_USER     = "${env.NEXUS_CREDS_USR}"
+        NEXUS_PASSWORD = "${env.NEXUS_CREDS_PSW}"
+        NEXUS_REPO     = "your-nexus-registry-url-here" // e.g., 1.2.3.4:8082
+        ANSIBLE_IP     = "your-ansible-control-node-ip"
     }
     stages {
         stage('Code Analysis') {
             steps {
                 withSonarQubeEnv('sonarqube') {
-                    sh 'mvn sonar:sonar'
+                    sh 'mvn -B clean compile org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=petclinic'
                 }
             }
         }
