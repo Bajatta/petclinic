@@ -11,7 +11,7 @@
     - name: Install the New Relic infrastructure agent
       shell: |
         curl -fsSL -o /etc/yum.repos.d/newrelic-infra.repo https://download.newrelic.com/infrastructure_agent/linux/yum/el/9/x86_64/newrelic-infra.repo
-        dnf install -y newrelic-infra
+        dnf install -y --nogpgcheck newrelic-infra
         printf 'license_key: %s\ndisplay_name: %s\n' '{{ newrelic_key }}' '{{ inventory_hostname }}' > /etc/newrelic-infra.yml
         systemctl enable --now newrelic-infra
       args:
