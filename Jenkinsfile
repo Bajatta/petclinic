@@ -4,6 +4,7 @@ pipeline {
         NEXUS_USER     = credentials('nexus-username')
         NEXUS_PASSWORD = credentials('nexus-password')
         NEXUS_REPO     = credentials('nexus-repo')   // <nexus-private-ip>:8085
+        NEWRELIC_KEY   = credentials('newrelic-license-key')
         DOMAIN         = 'beepaa.online'
         // ANSIBLE_IP and NEXUS_IP are set as global environment variables in Jenkins
         // (Manage Jenkins > System > Global properties). Values come from `terraform output`.
@@ -81,7 +82,7 @@ pipeline {
                     sh '''
                         scp -o StrictHostKeyChecking=no ansible/deploy.yml ec2-user@$ANSIBLE_IP:/etc/ansible/deploy.yml
                         ssh -o StrictHostKeyChecking=no ec2-user@$ANSIBLE_IP \
-                          "ansible-playbook -i /etc/ansible/stage-hosts /etc/ansible/deploy.yml -e nexus_repo=$NEXUS_REPO -e nexus_user=$NEXUS_USER -e nexus_password=$NEXUS_PASSWORD"
+                          "ansible-playbook -i /etc/ansible/stage-hosts /etc/ansible/deploy.yml -e nexus_repo=$NEXUS_REPO -e nexus_user=$NEXUS_USER -e nexus_password=$NEXUS_PASSWORD -e newrelic_key=$NEWRELIC_KEY"
                     '''
                 }
             }
@@ -110,7 +111,7 @@ pipeline {
                 sshagent(['ansible-key']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no ec2-user@$ANSIBLE_IP \
-                          "ansible-playbook -i /etc/ansible/prod-hosts /etc/ansible/deploy.yml -e nexus_repo=$NEXUS_REPO -e nexus_user=$NEXUS_USER -e nexus_password=$NEXUS_PASSWORD"
+                          "ansible-playbook -i /etc/ansible/prod-hosts /etc/ansible/deploy.yml -e nexus_repo=$NEXUS_REPO -e nexus_user=$NEXUS_USER -e nexus_password=$NEXUS_PASSWORD -e newrelic_key=$NEWRELIC_KEY"
                     '''
                 }
             }
@@ -125,6 +126,24 @@ pipeline {
                         error "Prod petclinic is not healthy (HTTP ${response})"
                     }
                 }
+            }
+        }
+    }
+    post {
+        success {
+            script {
+                try {
+                    slackSend(tokenCredentialId: 'slack-token', botUser: true, channel: '#pet-adoption', color: 'good',
+                              message: "SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER} deployed (${env.BUILD_URL})")
+                } catch (e) { echo "Slack notification failed: ${e}" }
+            }
+        }
+        failure {
+            script {
+                try {
+                    slackSend(tokenCredentialId: 'slack-token', botUser: true, channel: '#pet-adoption', color: 'danger',
+                              message: "FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER} (${env.BUILD_URL})")
+                } catch (e) { echo "Slack notification failed: ${e}" }
             }
         }
     }
